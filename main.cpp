@@ -29,15 +29,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
  */
 
-#include <QDesktopServices>
-#include <QApplication>
-#include <QDeclarativeView>
-#include <QDeclarativeEngine>
-#include <QDeclarativeContext>
+#include <QGuiApplication>
+#include <QQuickView>
+#include <QQmlEngine>
+#include <QQmlContext>
 #include <QDebug>
 #include <QDir>
 #ifdef HAS_BOOSTER
-#include <applauncherd/MDeclarativeCache>
+#include <MDeclarativeCache>
 #endif
 
 // directory (in user's home) where notes are saved
@@ -50,18 +49,24 @@ Q_DECL_EXPORT
 #endif
 int main(int argc, char **argv)
 {
-    QApplication *application;
-    QDeclarativeView *view;
+    QGuiApplication *application;
+    QQuickView *view;
 #ifdef HAS_BOOSTER
     application = MDeclarativeCache::qApplication(argc, argv);
-    view = MDeclarativeCache::qDeclarativeView();
+    application->setApplicationName("qmlnotes");
+    application->setOrganizationName("org.nemomobile");
+    view = MDeclarativeCache::qQuickView();
 #else
     qWarning() << Q_FUNC_INFO << "Warning! Running without booster. This may be a bit slower.";
-    QApplication stackApp(argc, argv);
-    QDeclarativeView stackView;
+    QGuiApplication stackApp(argc, argv);
+    application->setApplicationName("qmlnotes");
+    application->setOrganizationName("org.nemomobile");
+    QQuickView stackView;
     application = &stackApp;
     view = &stackView;
 #endif
+
+
 
     bool isFullscreen = false;
     QStringList arguments = application->arguments();
@@ -79,17 +84,17 @@ int main(int argc, char **argv)
     NotesBackend backend(QDir::home().absoluteFilePath(NOTES_DIR));
     view->rootContext()->setContextProperty("backend", &backend);
 
+    //this is needed or it will create db files in "mdeclarativeblabla-%PID" folder
+    //when starting the app with qtquick2 or qtcomponents-qt5 boosters.
+    //Setting appName and organizationName didn't help.
+    view->engine()->setOfflineStoragePath(QDir::homePath() + QLatin1String("/.local/share/qmlnotes"));
+
     QObject::connect(view->engine(), SIGNAL(quit()), application, SLOT(quit()));
 
     if (QFile::exists("main.qml"))
         view->setSource(QUrl::fromLocalFile("main.qml"));
     else
         view->setSource(QUrl("qrc:/main.qml"));
-
-    view->setAttribute(Qt::WA_OpaquePaintEvent);
-    view->setAttribute(Qt::WA_NoSystemBackground);
-    view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
-    view->viewport()->setAttribute(Qt::WA_NoSystemBackground);
 
     if (isFullscreen)
         view->showFullScreen();
